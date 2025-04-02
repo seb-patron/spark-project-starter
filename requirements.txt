@@ -1,0 +1,15 @@
+# Python packages required for Spark project
+# Add packages below in the format: package>=version
+#
+# Common data science packages (note this should be installed in the Dockerfile):
+# numpy>=1.20.0
+# pandas>=1.3.0
+# matplotlib>=3.4.0
+# seaborn>=0.11.0
+# scikit-learn>=1.0.0
+#
+# Spark-specific packages (note this should be installed in the Dockerfile):
+# pyspark>=3.3.0
+# delta-spark>=2.2.0
+#
+# Add your required packages below: 

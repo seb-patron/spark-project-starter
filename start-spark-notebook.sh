@@ -2,6 +2,72 @@
 
 # Script to start Jupyter notebook with Apache Spark and Scala support
 
+# Function to add a package to requirements.txt if it doesn't exist
+add_package() {
+  if ! grep -q "^$1" requirements.txt; then
+    echo "$1" >> requirements.txt
+    echo "Added $1 to requirements.txt"
+  else
+    echo "Package $1 already exists in requirements.txt"
+  fi
+}
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --add-package)
+      if [ -n "$2" ]; then
+        # Create requirements.txt if it doesn't exist
+        if [ ! -f "requirements.txt" ]; then
+          echo "# Python packages required for Spark project" > requirements.txt
+          echo "# Add other required packages below" >> requirements.txt
+        fi
+        add_package "$2"
+        shift 2
+      else
+        echo "Error: --add-package requires a package name"
+        exit 1
+      fi
+      ;;
+    --list-packages)
+      if [ -f "requirements.txt" ]; then
+        echo "Packages in requirements.txt:"
+        grep -v "^#" requirements.txt | grep -v "^$" | sed 's/^/ - /'
+      else
+        echo "requirements.txt does not exist yet."
+      fi
+      exit 0
+      ;;
+    --help)
+      echo "Usage: $0 [options]"
+      echo "Options:"
+      echo "  --add-package <package> Add a package to requirements.txt"
+      echo "  --list-packages        List all packages in requirements.txt" 
+      echo "  --help                 Show this help message"
+      exit 0
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+# Check if requirements.txt exists, create if it doesn't
+if [ ! -f "requirements.txt" ]; then
+  # Create an empty requirements.txt file
+  echo "# Python packages required for Spark project" > requirements.txt
+  echo "# Add packages below in the format: package>=version" >> requirements.txt
+  echo "Created empty requirements.txt file"
+else
+  echo "Using existing requirements.txt file with these packages:"
+  grep -v "^#" requirements.txt | grep -v "^$" | sed 's/^/ - /'
+  if [ $(grep -v "^#" requirements.txt | grep -v "^$" | wc -l) -eq 0 ]; then
+    echo "  (No packages found. Add packages to requirements.txt)"
+  fi
+  echo ""
+  echo "Tip: To add more packages, use: $0 --add-package <package_name>"
+fi
+
 # Print banner
 echo "========================================================"
 echo "  Starting Jupyter Notebook with Spark and Scala"
@@ -48,21 +114,41 @@ if [ "$option_choice" = "1" ]; then
   echo "Pulling the latest $IMAGE image..."
   docker pull $IMAGE
   
-  # Run the container
+  # Run the container with requirements.txt
   echo "Starting the container..."
+  echo "Installing packages from requirements.txt..."
   docker run -it --rm \
+    --name jupyter-spark \
     -p 8888:8888 \
     -v "$PWD":/home/jovyan/work \
-    $IMAGE
+    --entrypoint /bin/bash $IMAGE -c "pip install --quiet -r /home/jovyan/work/requirements.txt && start.sh jupyter lab"
 
 elif [ "$option_choice" = "2" ]; then
   # Build custom image
   echo "Building custom Spark+Scala image..."
+  
+  # Create a Dockerfile if it doesn't exist
+  if [ ! -f "Dockerfile" ]; then
+    echo "Creating a Dockerfile..."
+    cat > Dockerfile << EOL
+FROM jupyter/all-spark-notebook:latest
+
+USER root
+
+# Install Python packages from requirements.txt
+COPY requirements.txt /tmp/
+RUN pip install --quiet -r /tmp/requirements.txt
+
+USER \${NB_UID}
+EOL
+  fi
+  
   docker build -t spark-scala-notebook .
   
   # Run the custom container
   echo "Starting the container with custom image..."
   docker run -it --rm \
+    --name jupyter-spark \
     -p 8888:8888 \
     -v "$PWD":/home/jovyan/work \
     spark-scala-notebook
@@ -77,12 +163,14 @@ elif [ "$option_choice" = "3" ]; then
   echo "Pulling the latest $IMAGE image..."
   docker pull $IMAGE
   
-  # Run the container
+  # Run the container with requirements.txt
   echo "Starting the container..."
+  echo "Installing packages from requirements.txt..."
   docker run -it --rm \
+    --name jupyter-spark \
     -p 8888:8888 \
     -v "$PWD":/home/jovyan/work \
-    $IMAGE
+    --entrypoint /bin/bash $IMAGE -c "pip install --quiet -r /home/jovyan/work/requirements.txt && /usr/local/bin/start.sh jupyter lab"
 
 else
   echo "Invalid choice. Using default jupyter/all-spark-notebook"
@@ -92,10 +180,12 @@ else
   echo "Pulling the latest $IMAGE image..."
   docker pull $IMAGE
   
-  # Run the container
+  # Run the container with requirements.txt
   echo "Starting the container..."
+  echo "Installing packages from requirements.txt..."
   docker run -it --rm \
+    --name jupyter-spark \
     -p 8888:8888 \
     -v "$PWD":/home/jovyan/work \
-    $IMAGE
+    --entrypoint /bin/bash $IMAGE -c "pip install --quiet -r /home/jovyan/work/requirements.txt && start.sh jupyter lab"
 fi 
